@@ -1,9 +1,7 @@
-# Todo: Farm Night Background and Pump Visual
+# Todo: Fix Duplicate React Keys
 
-- [x] คัดลอก asset ภาพฟาร์มยามค่ำไปยัง webdev static assets และอัปโหลดแบบ webdev
-- [x] ใช้ภาพฟาร์มเป็น background โดยมี overlay เพื่อรักษา contrast ของข้อความ
-- [x] ตรวจภาพปั้มและกำหนดตำแหน่งปลายท่อสำหรับสายน้ำ
-- [x] ปรับ water-flow ให้ดูต่อเนื่องจากปลายท่อและเห็น splash ชัด
-- [x] คงการแสดงผลเฉพาะ MQTT-confirmed pump ON
-- [x] รัน typecheck/build และตรวจ desktop/mobile
+- [x] ระบุทุกจุดที่ render รายการ action ด้วย key ที่ไม่ unique
+- [x] เปลี่ยน key เป็น identifier ที่มีเอกลักษณ์ต่อรายการ โดยไม่เปลี่ยนข้อความที่แสดง
+- [x] ตรวจไม่มี duplicate key ในรายการสถานะและ action อื่น
+- [x] รัน typecheck/build และตรวจ browser console หลังแก้
 - [ ] สร้าง checkpoint ฉบับส่งมอบ
