@@ -114,3 +114,7 @@ state ใหม่รวมอยู่ใน `FarmControlState` เดียว
 
 [1]: https://github.com/mqttjs/MQTT.js "MQTT.js — JavaScript MQTT client"
 [2]: https://docs.hivemq.com/hivemq-cloud/mqtt-websocket.html "HiveMQ Cloud MQTT over WebSocket documentation"
+
+## Dynamic Naming Verification
+
+การแก้ชื่ออุปกรณ์ใช้ `deviceNames` และ `localStorage` เป็น UI preference เท่านั้น โดย `publishDeviceCommand` รับเฉพาะ `deviceId` กับ `command` จึงไม่มีชื่อภาษาไทยไหลเข้า command payload และไม่มีการ reload หน้าเมื่อบันทึกชื่อ
