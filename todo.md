@@ -1,9 +1,8 @@
-# Todo: Legacy Dashboard MQTT Compatibility
+# Todo: DHT22 Readability Upgrade
 
-- [x] ระบุ repository/branch ที่เป็น dashboard เก่า
-- [x] อ่านเฉพาะไฟล์ MQTT, RTC, ESP และ relay โดยไม่แก้ไขไฟล์ต้นฉบับ
-- [x] สรุป topic, payload, credentials flow และ event lifecycle เดิม
-- [x] ตรวจจุดเสี่ยงเรื่อง duplicate listener และ topic collision
-- [x] สร้าง adapter แยกสำหรับ dashboard ใหม่โดยคง contract เดิม
-- [x] รัน typecheck/build และตรวจ diff ว่าไม่แตะระบบเก่า
-- [ ] สร้าง checkpoint พร้อมรายงาน compatibility
+- [x] กำหนดไอคอนและสี semantic สำหรับอุณหภูมิและความชื้น
+- [x] ปรับการ์ดให้แสดงค่าจริงจาก MQTT พร้อมสถานะรอข้อมูลที่เด่นชัด
+- [x] คง DHT topic และ parser เดิมโดยไม่สร้างข้อมูลจำลอง
+- [x] เพิ่ม contrast, unit และ visual hierarchy ให้เหมาะกับ desktop/mobile
+- [x] รัน typecheck/build และตรวจภาพ dashboard
+- [ ] สร้าง checkpoint ฉบับส่งมอบ

@@ -32,6 +32,7 @@ export type FarmControlState = {
   deviceNames: Record<string, string>;
   lastActions: string[];
   rtc: { iso: string | null; source: "rtc" | "unknown" };
+  sensors: { temperature: number | null; humidity: number | null; lastUpdated: string | null };
   mqtt: { connected: boolean; configured: boolean; broker: string | null; lastMessage: string | null };
 };
 
@@ -75,6 +76,7 @@ export const createInitialFarmState = (): FarmControlState => ({
   deviceNames: Object.fromEntries(baseDevices.map((device) => [device.id, device.name])),
   lastActions: [],
   rtc: { iso: null, source: "unknown" },
+  sensors: { temperature: null, humidity: null, lastUpdated: null },
   mqtt: { connected: false, configured: Boolean(mqttConfig.username && mqttConfig.password), broker: mqttConfig.url, lastMessage: null },
 });
 
@@ -123,7 +125,7 @@ export function parseStatusMessage(payload: string, topic = ""): { deviceId?: st
   }
   if (topic === mqttConfig.topics.online) return { online: ["true", "online", "1", "yes"].includes(payload.trim().toLowerCase()) };
   if (topic === mqttConfig.topics.sensor) {
-    try { const value = JSON.parse(payload) as { temperature?: number; humidity?: number }; return { temperature: Number(value.temperature), humidity: Number(value.humidity) }; } catch { return null; }
+    try { const value = JSON.parse(payload) as { temperature?: number; humidity?: number }; const temperature = Number(value.temperature); const humidity = Number(value.humidity); return { temperature: Number.isFinite(temperature) ? temperature : undefined, humidity: Number.isFinite(humidity) ? humidity : undefined }; } catch { return null; }
   }
   if (topic === mqttConfig.topics.heartbeat) {
     try { const value = JSON.parse(payload) as { online?: boolean; time?: string; rtc?: boolean }; return { online: value.online !== false, rtcIso: value.time }; } catch { return null; }
