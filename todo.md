@@ -1,8 +1,9 @@
-# Todo: MQTT Pending Loading Spinner
+# Todo: Legacy Dashboard MQTT Compatibility
 
-- [x] ระบุทุกจุดที่แสดงสถานะ pending หลังส่ง MQTT command
-- [x] เพิ่ม spinner ที่ปุ่ม manual toggle, device card และ selected device hero
-- [x] คงสถานะอุปกรณ์เดิมจนกว่า MQTT status reply จะกลับมา
-- [x] เพิ่ม reduced-motion behavior และตรวจ accessibility label
-- [x] รัน typecheck/build และตรวจภาพ desktop/mobile
-- [ ] สร้าง checkpoint ฉบับส่งมอบ
+- [x] ระบุ repository/branch ที่เป็น dashboard เก่า
+- [x] อ่านเฉพาะไฟล์ MQTT, RTC, ESP และ relay โดยไม่แก้ไขไฟล์ต้นฉบับ
+- [x] สรุป topic, payload, credentials flow และ event lifecycle เดิม
+- [x] ตรวจจุดเสี่ยงเรื่อง duplicate listener และ topic collision
+- [x] สร้าง adapter แยกสำหรับ dashboard ใหม่โดยคง contract เดิม
+- [x] รัน typecheck/build และตรวจ diff ว่าไม่แตะระบบเก่า
+- [ ] สร้าง checkpoint พร้อมรายงาน compatibility

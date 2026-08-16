@@ -91,16 +91,17 @@ export default function Home() {
 
   useEffect(() => {
     const client = createMqttClient((event) => {
-      const status = parseStatusMessage(event.payload);
-      if (!status) return;
+      const message = parseStatusMessage(event.payload, event.topic);
+      if (!message) return;
       setState((current) => {
         const nextSchedules = current.schedules.map((schedule) => {
-          const action = getScheduleAction(schedule, status.rtcIso);
+          const action = getScheduleAction(schedule, message.rtcIso);
           if (!action || !publishDeviceCommand(clientRef.current, schedule.deviceId, action)) return schedule;
-          return { ...schedule, lastTriggered: status.rtcIso ?? schedule.lastTriggered };
+          return { ...schedule, lastTriggered: message.rtcIso ?? schedule.lastTriggered };
         });
-        const scheduledActions = nextSchedules.flatMap((schedule, index) => schedule.lastTriggered !== current.schedules[index]?.lastTriggered ? [`RTC ${schedule.deviceId} → ${schedule.lastTriggered ? "triggered" : "updated"}`] : []);
-        return { ...current, schedules: nextSchedules, devices: current.devices.map((device) => device.id === status.deviceId ? { ...device, status: status.status, pendingCommand: null, lastUpdated: status.rtcIso ?? current.rtc.iso } : device), rtc: status.rtcIso ? { iso: status.rtcIso, source: "rtc" } : current.rtc, mqtt: { ...current.mqtt, lastMessage: event.topic }, lastActions: [...scheduledActions, ...current.lastActions].slice(0, 4) };
+        const scheduledActions = nextSchedules.flatMap((schedule, index) => schedule.lastTriggered !== current.schedules[index]?.lastTriggered ? [`RTC ${schedule.deviceId} → triggered`] : []);
+        const nextDevices = message.deviceId && message.status ? current.devices.map((device) => device.id === message.deviceId ? { ...device, status: message.status ?? device.status, pendingCommand: null, lastUpdated: message.rtcIso ?? current.rtc.iso } : device) : current.devices;
+        return { ...current, schedules: nextSchedules, devices: nextDevices, rtc: message.rtcIso ? { iso: message.rtcIso, source: "rtc" } : current.rtc, mqtt: { ...current.mqtt, lastMessage: event.topic }, lastActions: [...scheduledActions, ...current.lastActions].slice(0, 4) };
       });
     }, (connected) => setState((current) => ({ ...current, mqtt: { ...current.mqtt, connected } })));
     clientRef.current = client;

@@ -118,3 +118,21 @@ state ใหม่รวมอยู่ใน `FarmControlState` เดียว
 ## Dynamic Naming Verification
 
 การแก้ชื่ออุปกรณ์ใช้ `deviceNames` และ `localStorage` เป็น UI preference เท่านั้น โดย `publishDeviceCommand` รับเฉพาะ `deviceId` กับ `command` จึงไม่มีชื่อภาษาไทยไหลเข้า command payload และไม่มีการ reload หน้าเมื่อบันทึกชื่อ
+
+## Legacy Dashboard Compatibility Addendum
+
+จากการตรวจ `klanarong156-pixel/New140869` พบว่า dashboard เดิมและ firmware ใช้ HiveMQ WebSocket URL เดิม และใช้ MQTT topic contract ดังนี้ โดย adapter ใหม่อ่าน/เขียน contract นี้โดยตรง และไม่ได้แก้ไฟล์ใน New140869
+
+| Legacy function | Topic | Payload |
+|---|---|---|
+| Relay command | `smartfarm/relay/{pump\|zone1\|lighthome\|lightsala}/set` | plain text `ON` หรือ `OFF` |
+| Relay status | `smartfarm/relay/{relay}/status` | plain text `ON` หรือ `OFF` |
+| DHT sensor | `smartfarm/sensor/dht11` | JSON `{ temperature, humidity }` |
+| Online/LWT | `smartfarm/status/online` | `true`/`false` หรือ online text |
+| Device heartbeat | `smartfarm/device/status` | JSON ที่มี `online`, `time`, `rtc`, firmware และ diagnostics |
+| Mode status | `smartfarm/mode/status` | `AUTO` หรือ `MANUAL` |
+| Schedule status | `smartfarm/schedule/{relay}/status` | JSON schedule payload |
+
+การ map UI ใหม่เป็น `pump → pump`, `zone1 → zone1`, `zone2 → lighthome` และ `light → lightsala` เพื่อคง relay/topic เดิม ขณะที่ชื่อ UI ยังคงเป็น layer แยกต่างหาก การส่งคำสั่งใช้ plain text ตาม firmware เดิม ไม่ใช้ JSON command schema ใหม่ และการรับสถานะจะ parse จาก topic พร้อมยืนยัน ON/OFF จาก ESP ก่อนอัปเดต state
+
+แหล่งตรวจสอบภายใน repository เดิม: `config.js`, `mqtt-handler.js` และ `SmartFarm_V6_PRODUCTION.ino` ใน branch `main` ของ [New140869](https://github.com/klanarong156-pixel/New140869).

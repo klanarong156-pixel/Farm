@@ -1,4 +1,4 @@
-// Style: Midnight SCADA — data-first state contracts keep confirmed device truth separate from UI naming.
+// Style: Midnight SCADA — confirmed device truth is adapted from the legacy MQTT contract; UI names never enter MQTT payloads.
 import mqtt, { type MqttClient } from "mqtt";
 
 export type DeviceType = "pump" | "zone1" | "zone2" | "light";
@@ -35,24 +35,35 @@ export type FarmControlState = {
   mqtt: { connected: boolean; configured: boolean; broker: string | null; lastMessage: string | null };
 };
 
-const topics = {
-  command: import.meta.env.VITE_MQTT_COMMAND_TOPIC ?? "",
-  status: import.meta.env.VITE_MQTT_STATUS_TOPIC ?? "",
-  heartbeat: import.meta.env.VITE_MQTT_HEARTBEAT_TOPIC ?? "",
+const LEGACY_BASE = "smartfarm";
+const relayForDevice: Record<string, "pump" | "zone1" | "lighthome" | "lightsala"> = {
+  pump: "pump",
+  zone1: "zone1",
+  zone2: "lighthome",
+  light: "lightsala",
 };
+const deviceForRelay: Record<string, string> = Object.fromEntries(Object.entries(relayForDevice).map(([deviceId, relay]) => [relay, deviceId]));
 
 export const mqttConfig = {
   url: import.meta.env.VITE_MQTT_URL ?? "wss://650188a0ee2b4367b7c131fb385590a9.s1.eu.hivemq.cloud:8884/mqtt",
   username: import.meta.env.VITE_MQTT_USERNAME ?? "",
   password: import.meta.env.VITE_MQTT_PASSWORD ?? "",
-  topics,
+  topics: {
+    command: (deviceId: string) => `${LEGACY_BASE}/relay/${relayForDevice[deviceId]}/set`,
+    status: `${LEGACY_BASE}/relay/+/status`,
+    sensor: `${LEGACY_BASE}/sensor/dht11`,
+    online: `${LEGACY_BASE}/status/online`,
+    heartbeat: `${LEGACY_BASE}/device/status`,
+    modeStatus: `${LEGACY_BASE}/mode/status`,
+    scheduleStatus: `${LEGACY_BASE}/schedule/+/status`,
+  },
 };
 
 const baseDevices: FarmDevice[] = [
-  { id: "pump", type: "pump", name: "ปั๊มหลัก", status: "unknown", mode: "manual", lastUpdated: null, mqttTopic: topics.command, pendingCommand: null },
-  { id: "zone1", type: "zone1", name: "แปลงผัก", status: "unknown", mode: "schedule", lastUpdated: null, mqttTopic: topics.command, pendingCommand: null },
-  { id: "zone2", type: "zone2", name: "โรงเรือน", status: "unknown", mode: "manual", lastUpdated: null, mqttTopic: topics.command, pendingCommand: null },
-  { id: "light", type: "light", name: "ไฟศาลา", status: "unknown", mode: "auto", lastUpdated: null, mqttTopic: topics.command, pendingCommand: null },
+  { id: "pump", type: "pump", name: "ปั๊มหลัก", status: "unknown", mode: "manual", lastUpdated: null, mqttTopic: mqttConfig.topics.command("pump"), pendingCommand: null },
+  { id: "zone1", type: "zone1", name: "แปลงผัก", status: "unknown", mode: "schedule", lastUpdated: null, mqttTopic: mqttConfig.topics.command("zone1"), pendingCommand: null },
+  { id: "zone2", type: "zone2", name: "โรงเรือน", status: "unknown", mode: "manual", lastUpdated: null, mqttTopic: mqttConfig.topics.command("zone2"), pendingCommand: null },
+  { id: "light", type: "light", name: "ไฟศาลา", status: "unknown", mode: "auto", lastUpdated: null, mqttTopic: mqttConfig.topics.command("light"), pendingCommand: null },
 ];
 
 export const createInitialFarmState = (): FarmControlState => ({
@@ -64,13 +75,16 @@ export const createInitialFarmState = (): FarmControlState => ({
   deviceNames: Object.fromEntries(baseDevices.map((device) => [device.id, device.name])),
   lastActions: [],
   rtc: { iso: null, source: "unknown" },
-  mqtt: { connected: false, configured: Boolean(mqttConfig.username && mqttConfig.password && mqttConfig.topics.command && mqttConfig.topics.status), broker: mqttConfig.url, lastMessage: null },
+  mqtt: { connected: false, configured: Boolean(mqttConfig.username && mqttConfig.password), broker: mqttConfig.url, lastMessage: null },
 });
 
 export function createMqttClient(onState: (event: { topic: string; payload: string }) => void, onConnection: (connected: boolean) => void): MqttClient | null {
-  if (!mqttConfig.username || !mqttConfig.password || !mqttConfig.topics.command || !mqttConfig.topics.status) return null;
-  const client = mqtt.connect(mqttConfig.url, { username: mqttConfig.username, password: mqttConfig.password, clean: true, reconnectPeriod: 5000 });
-  client.on("connect", () => { onConnection(true); client.subscribe([mqttConfig.topics.status, mqttConfig.topics.heartbeat].filter(Boolean)); });
+  if (!mqttConfig.username || !mqttConfig.password) return null;
+  const client = mqtt.connect(mqttConfig.url, { username: mqttConfig.username, password: mqttConfig.password, clean: true, reconnectPeriod: 5000, keepalive: 30, connectTimeout: 30000 });
+  client.on("connect", () => {
+    onConnection(true);
+    client.subscribe([mqttConfig.topics.status, mqttConfig.topics.sensor, mqttConfig.topics.online, mqttConfig.topics.heartbeat, mqttConfig.topics.modeStatus, mqttConfig.topics.scheduleStatus]);
+  });
   client.on("reconnect", () => onConnection(false));
   client.on("close", () => onConnection(false));
   client.on("message", (topic, payload) => onState({ topic, payload: payload.toString() }));
@@ -78,8 +92,9 @@ export function createMqttClient(onState: (event: { topic: string; payload: stri
 }
 
 export function publishDeviceCommand(client: MqttClient | null, deviceId: string, desired: "ON" | "OFF") {
-  if (!client || !client.connected || !mqttConfig.topics.command) return false;
-  client.publish(mqttConfig.topics.command, JSON.stringify({ deviceId, command: desired }), { qos: 1 });
+  const topic = mqttConfig.topics.command(deviceId);
+  if (!client || !client.connected || !relayForDevice[deviceId]) return false;
+  client.publish(topic, desired, { qos: 0 });
   return true;
 }
 
@@ -98,14 +113,20 @@ export function getScheduleAction(schedule: FarmSchedule, rtcIso: string | undef
   return null;
 }
 
-export function parseStatusMessage(payload: string): { deviceId: string; status: "ON" | "OFF"; rtcIso?: string } | null {
-  try {
-    const value = JSON.parse(payload) as { deviceId?: string; id?: string; status?: string; state?: string; rtc?: string; timestamp?: string };
-    const status = String(value.status ?? value.state ?? "").toUpperCase();
-    const deviceId = value.deviceId ?? value.id;
-    if (!deviceId || (status !== "ON" && status !== "OFF")) return null;
-    return { deviceId, status: status as "ON" | "OFF", rtcIso: value.rtc ?? value.timestamp };
-  } catch {
+export function parseStatusMessage(payload: string, topic = ""): { deviceId?: string; status?: "ON" | "OFF"; rtcIso?: string; online?: boolean; temperature?: number; humidity?: number } | null {
+  const relayMatch = topic.match(/^smartfarm\/relay\/([^/]+)\/status$/);
+  if (relayMatch) {
+    const status = payload.trim().toUpperCase();
+    const deviceId = deviceForRelay[relayMatch[1]];
+    if (deviceId && (status === "ON" || status === "OFF")) return { deviceId, status: status as "ON" | "OFF" };
     return null;
   }
+  if (topic === mqttConfig.topics.online) return { online: ["true", "online", "1", "yes"].includes(payload.trim().toLowerCase()) };
+  if (topic === mqttConfig.topics.sensor) {
+    try { const value = JSON.parse(payload) as { temperature?: number; humidity?: number }; return { temperature: Number(value.temperature), humidity: Number(value.humidity) }; } catch { return null; }
+  }
+  if (topic === mqttConfig.topics.heartbeat) {
+    try { const value = JSON.parse(payload) as { online?: boolean; time?: string; rtc?: boolean }; return { online: value.online !== false, rtcIso: value.time }; } catch { return null; }
+  }
+  return null;
 }
