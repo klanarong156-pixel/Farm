@@ -136,8 +136,8 @@ export default function Home() {
   };
   const updateSchedule = (next: FarmSchedule) => setState((current) => ({ ...current, schedules: current.schedules.some((item) => item.deviceId === next.deviceId) ? current.schedules.map((item) => item.deviceId === next.deviceId ? next : item) : [...current.schedules, next] }));
   const sensorCards = [
-    { label: "อุณหภูมิ", value: state.sensors.temperature === null ? "--" : state.sensors.temperature.toFixed(1), unit: "°C", icon: Thermometer, tint: "coral", note: state.sensors.temperature === null ? "รอข้อมูลจริงจาก ESP · DHT22" : "ยืนยันจาก ESP · DHT22", live: state.sensors.temperature !== null },
-    { label: "ความชื้นอากาศ", value: state.sensors.humidity === null ? "--" : state.sensors.humidity.toFixed(1), unit: "%", icon: Droplets, tint: "cyan", note: state.sensors.humidity === null ? "รอข้อมูลจริงจาก ESP · DHT22" : "ยืนยันจาก ESP · DHT22", live: state.sensors.humidity !== null },
+    { label: "อุณหภูมิ", value: state.sensors.temperature === null ? "--" : state.sensors.temperature.toFixed(1), unit: "°C", icon: Thermometer, tint: "coral", note: state.sensors.temperature === null ? "รอข้อมูลจริงจาก ESP · DHT11 · D2 / GPIO4" : "ยืนยันจาก ESP · DHT11 · D2 / GPIO4", live: state.sensors.temperature !== null },
+    { label: "ความชื้นอากาศ", value: state.sensors.humidity === null ? "--" : state.sensors.humidity.toFixed(1), unit: "%", icon: Droplets, tint: "cyan", note: state.sensors.humidity === null ? "รอข้อมูลจริงจาก ESP · DHT11 · D2 / GPIO4" : "ยืนยันจาก ESP · DHT11 · D2 / GPIO4", live: state.sensors.humidity !== null },
     { label: "เวลา RTC", value: state.rtc.iso ? new Date(state.rtc.iso).toLocaleTimeString("th-TH") : "--:--", unit: "", icon: Timer, tint: "green", note: state.rtc.source === "rtc" ? "ยืนยันจาก node" : "รอ RTC event", live: state.rtc.source === "rtc" },
     { label: "อุปกรณ์ยืนยันแล้ว", value: `${onlineCount}/${state.devices.length}`, unit: "ตัว", icon: Radio, tint: "amber", note: "ไม่นับสถานะที่คาดเดา", live: onlineCount > 0 },
   ];

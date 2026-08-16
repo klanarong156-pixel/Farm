@@ -136,3 +136,8 @@ state ใหม่รวมอยู่ใน `FarmControlState` เดียว
 การ map UI ใหม่เป็น `pump → pump`, `zone1 → zone1`, `zone2 → lighthome` และ `light → lightsala` เพื่อคง relay/topic เดิม ขณะที่ชื่อ UI ยังคงเป็น layer แยกต่างหาก การส่งคำสั่งใช้ plain text ตาม firmware เดิม ไม่ใช้ JSON command schema ใหม่ และการรับสถานะจะ parse จาก topic พร้อมยืนยัน ON/OFF จาก ESP ก่อนอัปเดต state
 
 แหล่งตรวจสอบภายใน repository เดิม: `config.js`, `mqtt-handler.js` และ `SmartFarm_V6_PRODUCTION.ino` ใน branch `main` ของ [New140869](https://github.com/klanarong156-pixel/New140869).
+
+
+## 11. Legacy Hardware Pin Verification
+
+จากการตรวจ `klanarong156-pixel/New140869` ใน branch `main` ยืนยันว่าเซ็นเซอร์ที่ firmware เดิมระบุคือ **DHT11 data: NodeMCU D2 / GPIO4** ไม่ใช่ DHT22 ส่วน RTC DS3231 ใช้ SDA ที่ D3 / GPIO0 และ SCL ที่ D4 / GPIO2 โดยค่า DHT ถูกส่งผ่าน `smartfarm/sensor/dht11` ใน JSON ที่มี `temperature` และ `humidity` ระบบ dashboard ใหม่จึงปรับ label ให้ตรงเป็น `DHT11 · D2 / GPIO4` โดยไม่เปลี่ยน topic, parser, firmware หรือ repository เดิม
