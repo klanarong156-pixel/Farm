@@ -1,8 +1,9 @@
-# Todo: DHT22 Readability Upgrade
+# Todo: SmartFarm Runtime Connection Debugging
 
-- [x] กำหนดไอคอนและสี semantic สำหรับอุณหภูมิและความชื้น
-- [x] ปรับการ์ดให้แสดงค่าจริงจาก MQTT พร้อมสถานะรอข้อมูลที่เด่นชัด
-- [x] คง DHT topic และ parser เดิมโดยไม่สร้างข้อมูลจำลอง
-- [x] เพิ่ม contrast, unit และ visual hierarchy ให้เหมาะกับ desktop/mobile
-- [x] รัน typecheck/build และตรวจภาพ dashboard
-- [ ] สร้าง checkpoint ฉบับส่งมอบ
+- [x] ตรวจ environment ที่ build/deployed ใช้อยู่จริง
+- [x] ตรวจ browser console และ network error ของ MQTT WebSocket
+- [x] ตรวจ URL, credentials flow และ topic subscription ของ legacy adapter
+- [x] ตรวจ payload DHT/relay ที่ parser รองรับเทียบกับ firmware เดิม
+- [x] แก้เฉพาะ bug ที่ยืนยันได้โดยไม่แตะระบบเก่า
+- [x] รัน typecheck/build และทดสอบ deployed flow
+- [ ] สร้าง checkpoint และสรุปขั้นตอนทดสอบกับ ESP/HiveMQ

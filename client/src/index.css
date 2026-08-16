@@ -53,3 +53,22 @@ button { border: 0; }
   .sensor-card strong { font-size: 24px; }
   .sensor-card__label b { font-size: 7px; }
 }
+
+/* Style: Midnight SCADA — MQTT credential dialog is an explicit connection gate; credentials stay client-side and no command is sent before broker confirmation. */
+.mqtt-dialog-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; background: rgba(2, 10, 18, .78); backdrop-filter: blur(10px); animation: fadeIn .18s ease-out; }
+.mqtt-dialog { width: min(100%, 470px); display: grid; gap: 16px; padding: 24px; color: var(--foreground); background: linear-gradient(145deg, rgba(23, 48, 67, .98), rgba(7, 20, 33, .98)); border: 1px solid rgba(134, 226, 107, .35); border-radius: 18px; box-shadow: 0 24px 70px rgba(0, 0, 0, .48), 0 0 32px rgba(81, 199, 255, .08); }
+.mqtt-dialog .sheet-heading { margin: 0; }
+.mqtt-dialog h2 { margin: 5px 0 0; color: #eef9f6; font-size: 21px; letter-spacing: -.04em; }
+.mqtt-dialog > .muted-text { margin: -3px 0 0; line-height: 1.7; }
+.mqtt-field { display: grid; gap: 7px; color: #b9ccd6; font-size: 11px; }
+.mqtt-field input { width: 100%; color: #eefaf6; background: rgba(5, 17, 28, .84); border: 1px solid rgba(139, 182, 203, .24); border-radius: 9px; padding: 11px 12px; outline: none; }
+.mqtt-field input:focus { border-color: var(--field); box-shadow: 0 0 0 3px rgba(134, 226, 107, .12); }
+.mqtt-remember { display: flex; align-items: center; gap: 8px; color: #9db3c0; font-size: 11px; }
+.mqtt-remember input { accent-color: var(--field); }
+.mqtt-endpoint { display: grid; gap: 5px; padding: 10px 12px; color: #7f9bab; background: rgba(6, 19, 31, .55); border: 1px solid rgba(139, 182, 203, .14); border-radius: 9px; font-size: 10px; }
+.mqtt-endpoint b { color: #bde5ed; font: 500 10px "Space Grotesk", sans-serif; overflow-wrap: anywhere; }
+.mqtt-submit { width: 100%; min-height: 44px; color: #072117; background: linear-gradient(135deg, #9ced75, #4dbb83); border: 0; font-weight: 700; }
+.mqtt-submit:hover { filter: brightness(1.08); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 520px) { .mqtt-dialog-backdrop { padding: 12px; }.mqtt-dialog { padding: 18px; border-radius: 15px; } }
+@media (prefers-reduced-motion: reduce) { .mqtt-dialog-backdrop { animation: none; } }

@@ -45,6 +45,26 @@ const relayForDevice: Record<string, "pump" | "zone1" | "lighthome" | "lightsala
 };
 const deviceForRelay: Record<string, string> = Object.fromEntries(Object.entries(relayForDevice).map(([deviceId, relay]) => [relay, deviceId]));
 
+export type MqttCredentials = { username: string; password: string };
+
+export function getMqttCredentials(): MqttCredentials | null {
+  const envCredentials = { username: String(import.meta.env.VITE_MQTT_USERNAME ?? "").trim(), password: String(import.meta.env.VITE_MQTT_PASSWORD ?? "") };
+  try {
+    const stored = JSON.parse(sessionStorage.getItem("smartfarm.mqtt.credentials") ?? "null") as MqttCredentials | null;
+    if (stored?.username && stored.password) return stored;
+    const remembered = JSON.parse(localStorage.getItem("smartfarm.mqtt.credentials") ?? "null") as MqttCredentials | null;
+    if (remembered?.username && remembered.password) return remembered;
+  } catch { /* storage may be unavailable in a restricted browser context */ }
+  return envCredentials.username && envCredentials.password ? envCredentials : null;
+}
+
+export function saveMqttCredentials(credentials: MqttCredentials, remember: boolean) {
+  const clean = { username: credentials.username.trim(), password: credentials.password };
+  sessionStorage.setItem("smartfarm.mqtt.credentials", JSON.stringify(clean));
+  if (remember) localStorage.setItem("smartfarm.mqtt.credentials", JSON.stringify(clean));
+  else localStorage.removeItem("smartfarm.mqtt.credentials");
+}
+
 export const mqttConfig = {
   url: import.meta.env.VITE_MQTT_URL ?? "wss://650188a0ee2b4367b7c131fb385590a9.s1.eu.hivemq.cloud:8884/mqtt",
   username: import.meta.env.VITE_MQTT_USERNAME ?? "",
@@ -77,18 +97,19 @@ export const createInitialFarmState = (): FarmControlState => ({
   lastActions: [],
   rtc: { iso: null, source: "unknown" },
   sensors: { temperature: null, humidity: null, lastUpdated: null },
-  mqtt: { connected: false, configured: Boolean(mqttConfig.username && mqttConfig.password), broker: mqttConfig.url, lastMessage: null },
+  mqtt: { connected: false, configured: Boolean(getMqttCredentials()), broker: mqttConfig.url, lastMessage: null },
 });
 
-export function createMqttClient(onState: (event: { topic: string; payload: string }) => void, onConnection: (connected: boolean) => void): MqttClient | null {
-  if (!mqttConfig.username || !mqttConfig.password) return null;
-  const client = mqtt.connect(mqttConfig.url, { username: mqttConfig.username, password: mqttConfig.password, clean: true, reconnectPeriod: 5000, keepalive: 30, connectTimeout: 30000 });
+export function createMqttClient(onState: (event: { topic: string; payload: string }) => void, onConnection: (connected: boolean) => void, credentials = getMqttCredentials()): MqttClient | null {
+  if (!credentials?.username || !credentials.password) return null;
+  const client = mqtt.connect(mqttConfig.url, { username: credentials.username, password: credentials.password, clean: true, reconnectPeriod: 5000, keepalive: 30, connectTimeout: 30000 });
   client.on("connect", () => {
     onConnection(true);
     client.subscribe([mqttConfig.topics.status, mqttConfig.topics.sensor, mqttConfig.topics.online, mqttConfig.topics.heartbeat, mqttConfig.topics.modeStatus, mqttConfig.topics.scheduleStatus]);
   });
   client.on("reconnect", () => onConnection(false));
   client.on("close", () => onConnection(false));
+  client.on("error", () => onConnection(false));
   client.on("message", (topic, payload) => onState({ topic, payload: payload.toString() }));
   return client;
 }
