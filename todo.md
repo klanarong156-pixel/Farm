@@ -1,9 +1,9 @@
-# Todo: Verify Legacy Sensor Pins
+# Todo: Farm Night Background and Pump Visual
 
-- [x] ระบุไฟล์ firmware/dashboard เดิมที่กำหนด pin ของ sensor
-- [x] ตรวจ DHT type และหมายเลข GPIO/D pin จากโค้ดจริง
-- [x] ตรวจ MQTT topic/payload ที่ส่งค่าจาก sensor
-- [x] เทียบกับ parser และ label ใน dashboard ใหม่
-- [x] แก้เฉพาะ mapping/config หากพบ mismatch ที่ยืนยันได้
-- [x] รัน typecheck/build และตรวจ diff ไม่แตะระบบเก่า
-- [x] สรุป pin ที่ยืนยันได้และรายการที่ต้องวัดกับ ESP จริง
+- [x] คัดลอก asset ภาพฟาร์มยามค่ำไปยัง webdev static assets และอัปโหลดแบบ webdev
+- [x] ใช้ภาพฟาร์มเป็น background โดยมี overlay เพื่อรักษา contrast ของข้อความ
+- [x] ตรวจภาพปั้มและกำหนดตำแหน่งปลายท่อสำหรับสายน้ำ
+- [x] ปรับ water-flow ให้ดูต่อเนื่องจากปลายท่อและเห็น splash ชัด
+- [x] คงการแสดงผลเฉพาะ MQTT-confirmed pump ON
+- [x] รัน typecheck/build และตรวจ desktop/mobile
+- [ ] สร้าง checkpoint ฉบับส่งมอบ
