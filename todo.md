@@ -1,9 +1,8 @@
-# Todo: SmartFarm Runtime Connection Debugging
+# Todo: Confirmed Pump Water Flow
 
-- [x] ตรวจ environment ที่ build/deployed ใช้อยู่จริง
-- [x] ตรวจ browser console และ network error ของ MQTT WebSocket
-- [x] ตรวจ URL, credentials flow และ topic subscription ของ legacy adapter
-- [x] ตรวจ payload DHT/relay ที่ parser รองรับเทียบกับ firmware เดิม
-- [x] แก้เฉพาะ bug ที่ยืนยันได้โดยไม่แตะระบบเก่า
-- [x] รัน typecheck/build และทดสอบ deployed flow
-- [ ] สร้าง checkpoint และสรุปขั้นตอนทดสอบกับ ESP/HiveMQ
+- [x] แสดงน้ำไหลเมื่อ pump.status === ON จาก MQTT เท่านั้น
+- [x] ไม่แสดงน้ำไหลระหว่าง UNKNOWN, OFF หรือ pending command
+- [x] เพิ่ม animation น้ำไหลจากปลายท่อให้เข้ากับภาพปั้มเดิม
+- [x] รองรับ prefers-reduced-motion โดยคงภาพน้ำไหลแบบนิ่งหรือซ่อน motion
+- [x] รัน typecheck/build และตรวจ desktop/mobile
+- [ ] สร้าง checkpoint ฉบับส่งมอบ
