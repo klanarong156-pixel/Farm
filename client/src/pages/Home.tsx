@@ -1,148 +1,68 @@
-// Style: Midnight SCADA — asymmetric control-room layout, navy depth, emerald confirmed states, no optimistic device status.
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Activity, Bell, CalendarDays, ChevronRight, CircleHelp, CloudRain, Cpu, Droplets, Edit3, Gauge, Home as HomeIcon, LoaderCircle,
-  Leaf, Lightbulb, LockKeyhole, Menu, MoreHorizontal, Power, Radio, RefreshCw, Save, Settings, ShieldCheck, Thermometer,
-  Timer, Wifi, X, Zap,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Activity, AlertTriangle, CheckCircle2, Clock3, Cloud, Droplets, Leaf, LockKeyhole, Radio, RefreshCw, Settings2, Thermometer, Wifi, WifiOff, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { Switch } from "@/components/ui/switch";
-import {
-  createInitialFarmState, createMqttClient, getMqttCredentials, getScheduleAction, mqttConfig, parseStatusMessage, publishDeviceCommand, saveMqttCredentials,
-  type DeviceMode, type FarmControlState, type FarmDevice, type FarmSchedule,
-} from "@/lib/farm-control";
+import { fetchFarmState, renameRelay, sendRelayCommand, type FarmControlState, type FarmDevice } from "@/lib/farm-control";
 
-const navItems = [
-  { label: "หน้าแรก", icon: HomeIcon },
-  { label: "ควบคุม", icon: Power },
-  { label: "ตารางเวลา", icon: CalendarDays },
-  { label: "แจ้งเตือน", icon: Bell, count: 3 },
-  { label: "ตั้งค่า", icon: Settings },
-  { label: "ระบบ", icon: Cpu },
-  { label: "ข้อมูลบันทึก", icon: Activity },
-  { label: "เกี่ยวกับ", icon: CircleHelp },
-];
-
-const deviceMeta: Record<FarmDevice["type"], { icon: typeof Droplets; tint: string; subtitle: string }> = {
-  pump: { icon: Droplets, tint: "cyan", subtitle: "Main irrigation relay" },
-  zone1: { icon: Leaf, tint: "green", subtitle: "Vegetable plot" },
-  zone2: { icon: Leaf, tint: "blue", subtitle: "Greenhouse relay" },
-  light: { icon: Lightbulb, tint: "amber", subtitle: "Pavilion lighting" },
+const fallbackState: FarmControlState = {
+  mqtt: { status: "DISCONNECTED", lastMessageAt: null, brokerConfigured: false },
+  esp8266: { status: "Unknown", lastHeartbeatAt: null, heartbeatAgeMs: null },
+  dht22: { temperature: null, humidity: null, status: "DHT22 OFFLINE", capturedAt: null, ageMs: null },
+  rtc: { iso: null, status: "UNKNOWN" },
+  relays: [1, 2, 3, 4].map((id) => ({ id, name: `Relay ${id}`, desiredState: null, confirmedState: "UNKNOWN", pendingCommand: null, pendingSince: null, lastConfirmedAt: null })),
+  updatedAt: new Date().toISOString(),
 };
 
-const weekdayLabels = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-
-function formatRtc(iso: string | null) {
-  if (!iso) return "ยังไม่ได้รับเวลา RTC";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "medium" }).format(date);
+function ageLabel(ageMs: number | null) {
+  if (ageMs === null) return "ยังไม่มีข้อมูล";
+  if (ageMs < 1_000) return "เมื่อสักครู่";
+  return `${Math.floor(ageMs / 1_000)} วินาทีที่แล้ว`;
 }
 
-function statusLabel(device: FarmDevice) {
-  if (device.pendingCommand) return `กำลังรอ ESP ยืนยัน ${device.pendingCommand}`;
-  if (device.status === "unknown") return "ยังไม่มีสถานะจาก ESP";
-  return device.status === "ON" ? "กำลังทำงาน" : "หยุดทำงาน";
+function StatusBadge({ tone, children }: { tone: "green" | "red" | "amber" | "slate"; children: React.ReactNode }) {
+  return <span className={`status-badge status-badge--${tone}`}><span className="status-badge__dot" />{children}</span>;
 }
 
-function StatusPill({ connected, children }: { connected: boolean; children: React.ReactNode }) {
-  return <span className={`status-pill ${connected ? "status-pill--online" : "status-pill--muted"}`}><span className="status-dot" />{children}</span>;
+function RelayCard({ relay, onCommand, onRename }: { relay: FarmDevice; onCommand: (relay: FarmDevice) => void; onRename: (relay: FarmDevice) => void }) {
+  const isConfirmedOn = relay.confirmedState === "ON";
+  const isPending = Boolean(relay.pendingCommand);
+  return <article className={`relay-card ${isConfirmedOn ? "relay-card--active" : ""}`}>
+    <div className="relay-card__head"><div className="relay-index">0{relay.id}</div><button className="ghost-button" onClick={() => onRename(relay)} aria-label={`แก้ชื่อ ${relay.name}`}><Settings2 size={15} /></button></div>
+    <div className="relay-card__identity"><div><span className="micro-label">RELAY CHANNEL</span><h3>{relay.name}</h3></div><div className={`relay-icon ${isConfirmedOn ? "relay-icon--on" : ""}`}><Zap size={18} /></div></div>
+    <div className="relay-card__state"><div><span className="micro-label">CONFIRMED HARDWARE STATE</span><strong className={isConfirmedOn ? "text-live" : relay.confirmedState === "OFF" ? "text-muted" : "text-warning"}>{relay.confirmedState}</strong></div><div className="relay-command"><span className="micro-label">DESIRED</span><span>{relay.desiredState ?? "—"}</span></div></div>
+    <button className={`relay-action ${isConfirmedOn ? "relay-action--on" : ""}`} disabled={isPending} onClick={() => onCommand(relay)}>{isPending ? <><RefreshCw size={16} className="spin" />รอ ESP8266 ยืนยัน {relay.pendingCommand}</> : <><PowerIcon state={isConfirmedOn} />สั่งให้เป็น {isConfirmedOn ? "OFF" : "ON"}</>}</button>
+    {isPending && <p className="pending-note"><Clock3 size={13} />ส่งคำสั่งแล้ว · ยังไม่ถือว่า Hardware เปลี่ยนสถานะ</p>}
+  </article>;
 }
 
-function DeviceCard({ device, schedule, onName, onMode, onToggle, onSchedule }: {
-  device: FarmDevice; schedule?: FarmSchedule; onName: (name: string) => void; onMode: (mode: DeviceMode) => void;
-  onToggle: () => void; onSchedule: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(device.name);
-  const meta = deviceMeta[device.type];
-  const Icon = meta.icon;
-  const confirmedOn = device.status === "ON";
-  const saveName = () => { const value = draft.trim(); if (value) onName(value); setEditing(false); };
-  return (
-    <article className={`device-card device-card--${meta.tint}`}>
-      <div className="device-card__topline"><span className="eyebrow">{device.type.toUpperCase()} / RELAY</span><span className={`device-symbol device-symbol--${meta.tint}`}><Icon size={18} /></span></div>
-      <div className="device-card__title-row">
-        {editing ? <input autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} onBlur={saveName} onKeyDown={(event) => event.key === "Enter" && saveName()} className="name-input" aria-label="ชื่ออุปกรณ์" /> : <h3>{device.name}</h3>}
-        <button className="icon-button" onClick={() => setEditing(true)} aria-label={`แก้ชื่อ ${device.name}`}><Edit3 size={15} /></button>
-      </div>
-      <p className="muted-text">{meta.subtitle}</p>
-      <div className="device-card__status"><span className={confirmedOn ? "state-on" : device.status === "OFF" ? "state-off" : "state-unknown"}>{device.pendingCommand ? <LoaderCircle className="pending-spinner" size={19} aria-label="กำลังรอการยืนยันจาก MQTT" /> : device.status === "unknown" ? "--" : device.status}</span><span className={device.pendingCommand ? "pending-label" : ""}>{statusLabel(device)}</span></div>
-      <div className="device-card__controls"><select value={device.mode} onChange={(event) => onMode(event.target.value as DeviceMode)} aria-label={`โหมดของ ${device.name}`}><option value="manual">Manual</option><option value="auto">Auto</option><option value="schedule">Schedule</option></select><button className="schedule-button" onClick={onSchedule}><Timer size={15} />{schedule?.enabled ? `${schedule.startTime}–${schedule.endTime}` : "ตั้งเวลา"}</button><Switch checked={confirmedOn} disabled={Boolean(device.pendingCommand)} onCheckedChange={onToggle} aria-label={`สั่งงาน ${device.name}`} /></div>
-    </article>
-  );
-}
-
-function ScheduleEditor({ schedule, device, onChange, onClose }: { schedule: FarmSchedule; device: FarmDevice; onChange: (next: FarmSchedule) => void; onClose: () => void }) {
-  return <div className="schedule-sheet"><div className="sheet-heading"><div><span className="eyebrow">RTC SCHEDULER</span><h2>{device.name}</h2></div><button className="icon-button" onClick={onClose} aria-label="ปิด"><X size={18} /></button></div><p className="muted-text">ระบบจะ trigger จากเวลาที่ node รายงานเท่านั้น ไม่ใช้เวลาจาก browser เป็น logic หลัก</p><div className="schedule-fields"><label>เปิดเวลา<input type="time" value={schedule.startTime} onChange={(e) => onChange({ ...schedule, startTime: e.target.value })} /></label><label>ปิดเวลา<input type="time" value={schedule.endTime} onChange={(e) => onChange({ ...schedule, endTime: e.target.value })} /></label></div><div className="schedule-row"><span>เปิดใช้งานตาราง</span><Switch checked={schedule.enabled} onCheckedChange={(enabled) => onChange({ ...schedule, enabled })} /></div><div className="schedule-row"><span>ทำซ้ำ</span><select value={schedule.repeat} onChange={(e) => onChange({ ...schedule, repeat: e.target.value as FarmSchedule["repeat"] })}><option value="daily">ทุกวัน</option><option value="weekly">รายสัปดาห์</option></select></div><div><span className="field-label">วันทำงาน</span><div className="weekday-list">{weekdayLabels.map((label, index) => <button key={label} className={schedule.daysOfWeek.includes(index) ? "weekday weekday--active" : "weekday"} onClick={() => onChange({ ...schedule, daysOfWeek: schedule.daysOfWeek.includes(index) ? schedule.daysOfWeek.filter((day) => day !== index) : [...schedule.daysOfWeek, index] })}>{label}</button>)}</div></div><div className="schedule-note"><ShieldCheck size={17} /><span>บันทึกเป็น UI configuration เท่านั้น; การ trigger จริงต้องมี RTC event และ MQTT command ที่ส่งสำเร็จ</span></div></div>;
-}
+function PowerIcon({ state }: { state: boolean }) { return state ? <WifiOff size={16} /> : <Wifi size={16} />; }
 
 export default function Home() {
-  const [state, setState] = useState<FarmControlState>(() => {
-    const base = createInitialFarmState();
-    try { const saved = JSON.parse(localStorage.getItem("smartfarm-device-names") ?? "{}"); return { ...base, deviceNames: saved, devices: base.devices.map((device) => ({ ...device, name: saved[device.id] ?? device.name })) }; } catch { return base; }
-  });
-  const [selectedId, setSelectedId] = useState("pump");
-  const [scheduleDeviceId, setScheduleDeviceId] = useState<string | null>(null);
-  const storedCredentials = getMqttCredentials();
-  const [mqttOpen, setMqttOpen] = useState(!storedCredentials);
-  const [mqttForm, setMqttForm] = useState({ username: storedCredentials?.username ?? "", password: "", remember: Boolean(storedCredentials) });
-  const [mqttConnectNonce, setMqttConnectNonce] = useState(0);
-  const clientRef = useRef<ReturnType<typeof createMqttClient>>(null);
-  const selectedDevice = state.devices.find((device) => device.id === selectedId) ?? state.devices[0];
-  const selectedSchedule = state.schedules.find((schedule) => schedule.deviceId === (scheduleDeviceId ?? selectedId));
-  const onlineCount = state.devices.filter((device) => device.status !== "unknown").length;
+  const [state, setState] = useState<FarmControlState>(fallbackState);
+  const [loading, setLoading] = useState(true);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   useEffect(() => {
-    const client = createMqttClient((event) => {
-      const message = parseStatusMessage(event.payload, event.topic);
-      if (!message) return;
-      setState((current) => {
-        const nextSchedules = current.schedules.map((schedule) => {
-          const action = getScheduleAction(schedule, message.rtcIso);
-          if (!action || !publishDeviceCommand(clientRef.current, schedule.deviceId, action)) return schedule;
-          return { ...schedule, lastTriggered: message.rtcIso ?? schedule.lastTriggered };
-        });
-        const scheduledActions = nextSchedules.flatMap((schedule, index) => schedule.lastTriggered !== current.schedules[index]?.lastTriggered ? [`RTC ${schedule.deviceId} → triggered`] : []);
-        const nextDevices = message.deviceId && message.status ? current.devices.map((device) => device.id === message.deviceId ? { ...device, status: message.status ?? device.status, pendingCommand: null, lastUpdated: message.rtcIso ?? current.rtc.iso } : device) : current.devices;
-        const nextSensors = message.temperature !== undefined || message.humidity !== undefined ? { temperature: message.temperature ?? current.sensors.temperature, humidity: message.humidity ?? current.sensors.humidity, lastUpdated: message.rtcIso ?? new Date().toISOString() } : current.sensors;
-        return { ...current, schedules: nextSchedules, devices: nextDevices, sensors: nextSensors, rtc: message.rtcIso ? { iso: message.rtcIso, source: "rtc" } : current.rtc, mqtt: { ...current.mqtt, lastMessage: event.topic }, lastActions: [...scheduledActions, ...current.lastActions].slice(0, 4) };
-      });
-    }, (connected) => setState((current) => ({ ...current, mqtt: { ...current.mqtt, connected } })));
-    clientRef.current = client;
-    return () => { client?.end(true); clientRef.current = null; };
-  }, [mqttConnectNonce]);
+    let active = true;
+    fetchFarmState().then((next) => { if (active) { setState(next); setLoading(false); } }).catch((error) => { if (active) { setLastError(error.message); setLoading(false); } });
+    const events = new EventSource("/api/events");
+    events.addEventListener("snapshot", (event) => { if (!active) return; try { setState(JSON.parse((event as MessageEvent).data) as FarmControlState); setLastError(null); } catch { setLastError("ได้รับข้อมูลสถานะไม่ถูกต้อง"); } });
+    events.onerror = () => setLastError("Real-time stream ขัดข้อง กำลังรอการเชื่อมต่อใหม่");
+    return () => { active = false; events.close(); };
+  }, []);
 
-  const submitMqttCredentials = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!mqttForm.username.trim() || !mqttForm.password) { toast.error("กรุณากรอก MQTT username และ password"); return; }
-    saveMqttCredentials({ username: mqttForm.username, password: mqttForm.password }, mqttForm.remember);
-    setState((current) => ({ ...current, mqtt: { ...current.mqtt, configured: true } }));
-    setMqttOpen(false);
-    setMqttConnectNonce((value) => value + 1);
-    toast.info("กำลังเชื่อมต่อ HiveMQ ผ่าน WebSocket", { description: "รอ MQTT Connected ก่อนส่งคำสั่งไป ESP" });
+  const onlineRelays = useMemo(() => state.relays.filter((relay) => relay.confirmedState !== "UNKNOWN").length, [state.relays]);
+  const handleCommand = async (relay: FarmDevice) => {
+    const desiredState = relay.confirmedState === "ON" ? "OFF" : "ON";
+    try { await sendRelayCommand(relay.id, desiredState); toast.info(`ส่งคำสั่ง ${desiredState} ไป Relay ${relay.id}`, { description: "กำลังรอ confirmed state จาก ESP8266" }); } catch (error) { toast.error(error instanceof Error ? error.message : "ส่งคำสั่งไม่สำเร็จ"); }
   };
+  const handleRename = async (relay: FarmDevice) => {
+    const name = window.prompt("ชื่อ Relay ใหม่", relay.name)?.trim();
+    if (!name || name === relay.name) return;
+    try { await renameRelay(relay.id, name); toast.success("บันทึกชื่อ Relay แล้ว"); } catch { toast.error("บันทึกชื่อไม่สำเร็จ"); }
+  };
+  const mqttConnected = state.mqtt.status === "CONNECTED";
+  const espOnline = state.esp8266.status === "Online";
+  const sensorTone = state.dht22.status === "OK" ? "green" : state.dht22.status === "SENSOR ERROR" ? "red" : "amber";
 
-  const updateName = (deviceId: string, name: string) => {
-    setState((current) => { const deviceNames = { ...current.deviceNames, [deviceId]: name }; localStorage.setItem("smartfarm-device-names", JSON.stringify(deviceNames)); return { ...current, deviceNames, devices: current.devices.map((device) => device.id === deviceId ? { ...device, name } : device) }; });
-    toast.success("บันทึกชื่อใน UI แล้ว", { description: "ชื่อจะไม่ถูกส่งไปยัง ESP หรือ MQTT" });
-  };
-  const updateMode = (deviceId: string, mode: DeviceMode) => setState((current) => ({ ...current, devices: current.devices.map((device) => device.id === deviceId ? { ...device, mode } : device), lastActions: [`เปลี่ยนโหมด ${deviceId} เป็น ${mode}`, ...current.lastActions].slice(0, 4) }));
-  const toggleDevice = (device: FarmDevice) => {
-    const desired = device.status === "ON" ? "OFF" : "ON";
-    if (!state.mqtt.configured) { toast.error("ยังไม่ได้ตั้งค่า MQTT topic/credentials", { description: "จึงไม่ส่งคำสั่งและไม่เปลี่ยนสถานะอุปกรณ์" }); return; }
-    if (!publishDeviceCommand(clientRef.current, device.id, desired)) { toast.error("ส่ง MQTT command ไม่สำเร็จ", { description: "ตรวจสอบ broker และ connection ก่อนลองใหม่" }); return; }
-    setState((current) => ({ ...current, devices: current.devices.map((item) => item.id === device.id ? { ...item, pendingCommand: desired } : item), lastActions: [`ส่งคำสั่ง ${desired} → ${device.name}`, ...current.lastActions].slice(0, 4) }));
-  };
-  const updateSchedule = (next: FarmSchedule) => setState((current) => ({ ...current, schedules: current.schedules.some((item) => item.deviceId === next.deviceId) ? current.schedules.map((item) => item.deviceId === next.deviceId ? next : item) : [...current.schedules, next] }));
-  const sensorCards = [
-    { label: "อุณหภูมิ", value: state.sensors.temperature === null ? "--" : state.sensors.temperature.toFixed(1), unit: "°C", icon: Thermometer, tint: "coral", note: state.sensors.temperature === null ? "รอข้อมูลจริงจาก ESP · DHT11 · D2 / GPIO4" : "ยืนยันจาก ESP · DHT11 · D2 / GPIO4", live: state.sensors.temperature !== null },
-    { label: "ความชื้นอากาศ", value: state.sensors.humidity === null ? "--" : state.sensors.humidity.toFixed(1), unit: "%", icon: Droplets, tint: "cyan", note: state.sensors.humidity === null ? "รอข้อมูลจริงจาก ESP · DHT11 · D2 / GPIO4" : "ยืนยันจาก ESP · DHT11 · D2 / GPIO4", live: state.sensors.humidity !== null },
-    { label: "เวลา RTC", value: state.rtc.iso ? new Date(state.rtc.iso).toLocaleTimeString("th-TH") : "--:--", unit: "", icon: Timer, tint: "green", note: state.rtc.source === "rtc" ? "ยืนยันจาก node" : "รอ RTC event", live: state.rtc.source === "rtc" },
-    { label: "อุปกรณ์ยืนยันแล้ว", value: `${onlineCount}/${state.devices.length}`, unit: "ตัว", icon: Radio, tint: "amber", note: "ไม่นับสถานะที่คาดเดา", live: onlineCount > 0 },
-  ];
-
-  return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><Leaf size={25} /></div><div><strong>สวนลุงนะ</strong><span>SMART FARM</span></div></div><nav>{navItems.map(({ label, icon: Icon, count }, index) => <button key={label} className={index === 0 ? "nav-item nav-item--active" : "nav-item"} onClick={() => index !== 0 && toast.info(`${label} จะเชื่อมกับข้อมูลจริงเมื่อเปิด module นี้`)}><Icon size={19} /><span>{label}</span>{count && <b>{count}</b>}</button>)}</nav><div className="sidebar-footer"><div className="profile"><div className="profile-avatar">ล</div><div><strong>ลุงนะ</strong><span>Admin / Node owner</span></div><MoreHorizontal size={16} /></div><small>© 2025 Smart Farm<br />Real device dashboard</small></div></aside><main className="main-content"><header className="topbar"><div className="mobile-brand"><Menu size={19} /><span>สวนลุงนะ</span></div><div className="connection-strip"><div className="connection-item"><span className={state.mqtt.connected ? "live-dot" : "live-dot live-dot--muted"} /><span><b>ระบบออนไลน์</b><small>{state.mqtt.connected ? "CONNECTED" : state.mqtt.configured ? "CONNECTING" : "รอตั้งค่า MQTT"}</small></span></div><div className="connection-item"><Wifi size={21} /><span><b>WiFi</b><small>ต้องอ่านจาก heartbeat</small></span></div><div className="connection-item"><Radio size={21} /><span><b>MQTT</b><small>{state.mqtt.connected ? "Connected" : "Not connected"}</small></span></div><div className="rtc-clock"><Timer size={25} /><span><b>{state.rtc.iso ? new Date(state.rtc.iso).toLocaleTimeString("th-TH") : "--:--:--"}</b><small>{state.rtc.iso ? formatRtc(state.rtc.iso) : "RTC source unavailable"}</small></span></div></div></header><section className="page-heading"><div><span className="eyebrow">FARM CONTROL SYSTEM / REAL MQTT</span><h1>ศูนย์ควบคุมฟาร์ม</h1><p>สั่งงานเมื่อพร้อม ยืนยันเมื่อ ESP ตอบกลับ — ไม่มีสถานะจำลอง</p></div><div className="heading-actions"><StatusPill connected={state.mqtt.connected}>{state.mqtt.connected ? "MQTT Connected" : "MQTT Offline"}</StatusPill><button className="outline-button" onClick={() => setMqttOpen(true)}>{state.mqtt.connected ? <RefreshCw size={16} /> : <LockKeyhole size={16} />} {state.mqtt.connected ? "ตั้งค่าการเชื่อมต่อ" : "เชื่อมต่อ MQTT"}</button></div></section><div className="sensor-grid">{sensorCards.map(({ label, value, unit, icon: Icon, tint, note, live }) => <article key={label} className={`sensor-card sensor-card--${tint} ${live ? "sensor-card--live" : "sensor-card--waiting"}`}><div className={`sensor-icon sensor-icon--${tint}`}><Icon size={21} strokeWidth={2.2} /></div><div className="sensor-card__body"><div className="sensor-card__label"><span>{label}</span><b>{live ? "LIVE" : "WAITING"}</b></div><strong>{value}<small>{unit}</small></strong><p>{note}</p></div><div className={`sparkline sparkline--${tint}`}><span /><span /><span /><span /><span /></div></article>)}</div><section className="hero-grid"><article className="pump-hero"><div className="pump-hero__copy"><div className="hero-topline"><span className="eyebrow">SELECTED DEVICE / {selectedDevice.type.toUpperCase()}</span><span className="mode-chip"><RefreshCw size={14} />{selectedDevice.mode.toUpperCase()}</span></div><h2>{selectedDevice.name}</h2><p>อุปกรณ์จริงผ่าน relay · {selectedDevice.mqttTopic || "ยังไม่ได้ระบุ command topic"}</p><div className="hero-state"><strong className={selectedDevice.status === "ON" ? "state-on" : selectedDevice.status === "OFF" ? "state-off" : "state-unknown"}>{selectedDevice.pendingCommand ? <LoaderCircle className="pending-spinner hero-spinner" size={41} aria-label="กำลังรอการยืนยันจาก MQTT" /> : selectedDevice.status === "unknown" ? "UNKNOWN" : selectedDevice.status}</strong><span className={selectedDevice.pendingCommand ? "pending-label" : ""}>{statusLabel(selectedDevice)}</span></div>
-<div className="hero-meta"><div><span>RTC last update</span><b>{formatRtc(selectedDevice.lastUpdated)}</b></div><div><span>Mode</span><b>{selectedDevice.mode}</b></div></div><div className="hero-actions"><button className="danger-button" onClick={() => selectedDevice.status === "ON" && toggleDevice(selectedDevice)} disabled={selectedDevice.status !== "ON" || Boolean(selectedDevice.pendingCommand)}><Power size={18} />หยุดอุปกรณ์</button><button className="manual-button" onClick={() => toggleDevice(selectedDevice)} disabled={Boolean(selectedDevice.pendingCommand)} aria-busy={Boolean(selectedDevice.pendingCommand)}>{selectedDevice.pendingCommand ? <LoaderCircle className="pending-spinner" size={17} aria-hidden="true" /> : <Power size={17} />}{selectedDevice.pendingCommand ? `รอ ESP ยืนยัน ${selectedDevice.pendingCommand}` : selectedDevice.status === "ON" ? "ส่ง OFF (MANUAL)" : "ส่ง ON (MANUAL)"}</button>
-</div></div><div className={selectedDevice.status === "ON" && !selectedDevice.pendingCommand ? "pump-hero__visual pump-hero__visual--active" : "pump-hero__visual"}><img src="/manus-storage/smartfarm-pump_cabd5cd5.png" alt="ภาพประกอบปั๊มน้ำสำหรับฟาร์ม" />{selectedDevice.status === "ON" && !selectedDevice.pendingCommand && <div className="water-flow" aria-label="ปั้มกำลังจ่ายน้ำตามสถานะที่ ESP ยืนยัน"><div className="water-flow__nozzle" /><div className="water-flow__jet"><span className="water-flow__ribbon water-flow__ribbon--a" /><span className="water-flow__ribbon water-flow__ribbon--b" /><span className="water-flow__ribbon water-flow__ribbon--c" /></div><div className="water-flow__droplets"><i className="water-flow__droplet water-flow__droplet--a" /><i className="water-flow__droplet water-flow__droplet--b" /><i className="water-flow__droplet water-flow__droplet--c" /><i className="water-flow__droplet water-flow__droplet--d" /></div><div className="water-flow__splash"><i /><i /><i /><i /><i /></div></div>}<div className="visual-caption"><Zap size={14} /> {selectedDevice.status === "ON" && !selectedDevice.pendingCommand ? "น้ำไหล · ESP ยืนยัน ON" : "คำสั่งถูกส่งผ่าน MQTT เมื่อ connection พร้อม"}</div></div></article><aside className="right-rail"><article className="weather-card"><div className="rail-heading"><div><span className="eyebrow">RTC / NODE TIME</span><h3>เวลาจากอุปกรณ์</h3></div><Timer size={22} /></div><strong>{formatRtc(state.rtc.iso)}</strong><p>ตรรกะตารางเวลาจะทำงานเมื่อได้รับ timestamp จาก RTC เท่านั้น</p><div className="rain-note"><CloudRain size={20} /><span><b>ไม่มีข้อมูลฝน</b><small>ระบบไม่สร้าง sensor ที่ไม่มีใน hardware</small></span></div></article><article className="alert-card"><div className="alert-icon"><ShieldCheck size={20} /></div><div><span className="eyebrow">SAFETY CHECK</span><h3>ไม่ optimistic state</h3><p>ทุก toggle แสดง pending จนกว่า status reply จะกลับมาจาก ESP</p></div></article></aside></section><section className="section-block"><div className="section-title"><div><span className="eyebrow">UNIFIED CONTROL PANEL</span><h2>อุปกรณ์ฟาร์ม</h2></div><span className="muted-text">กดเลือกการ์ดเพื่อดู command และ RTC schedule</span></div><div className="device-grid">{state.devices.map((device) => <div key={device.id} onClick={() => setSelectedId(device.id)} className={selectedId === device.id ? "device-card-wrap device-card-wrap--selected" : "device-card-wrap"}><DeviceCard device={device} schedule={state.schedules.find((schedule) => schedule.deviceId === device.id)} onName={(name) => updateName(device.id, name)} onMode={(mode) => updateMode(device.id, mode)} onToggle={() => toggleDevice(device)} onSchedule={() => setScheduleDeviceId(device.id)} /></div>)}</div></section><section className="lower-grid"><article className="schedule-panel"><div className="section-title"><div><span className="eyebrow">RTC SCHEDULE</span><h2>ตารางรดน้ำอัตโนมัติ</h2></div><button className="text-button" onClick={() => setScheduleDeviceId(selectedId)}>จัดการทั้งหมด <ChevronRight size={16} /></button></div>{state.schedules.map((schedule) => { const device = state.devices.find((item) => item.id === schedule.deviceId); if (!device) return null; return <button className="schedule-row-card" key={schedule.deviceId} onClick={() => setScheduleDeviceId(schedule.deviceId)}><div className={`schedule-orb schedule-orb--${device.type}`}><Timer size={20} /></div><div className="schedule-copy"><strong>{device.name}</strong><span>{schedule.startTime} – {schedule.endTime} · {schedule.repeat === "daily" ? "ทุกวัน" : "รายสัปดาห์"}</span></div><StatusPill connected={schedule.enabled}>{schedule.enabled ? "เปิดใช้งาน" : "ปิดอยู่"}</StatusPill><ChevronRight size={17} /></button>})}<div className="schedule-footer"><LockKeyhole size={16} /><span>Last triggered: {selectedSchedule?.lastTriggered ? formatRtc(selectedSchedule.lastTriggered) : "ยังไม่มี event จาก RTC"}</span></div></article><article className="system-panel"><div className="section-title"><div><span className="eyebrow">SYSTEM STATUS</span><h2>สถานะระบบ</h2></div><Gauge size={20} /></div><div className="system-list"><div><Cpu size={17} /><span>ESP Node</span><b className="unknown-badge">รอ heartbeat</b></div><div><Radio size={17} /><span>MQTT Broker</span><b className={state.mqtt.connected ? "ok-badge" : "unknown-badge"}>{state.mqtt.connected ? "CONNECTED" : "UNKNOWN"}</b></div><div><Wifi size={17} /><span>WiFi</span><b className="unknown-badge">รอ heartbeat</b></div><div><Timer size={17} /><span>RTC Source</span><b className={state.rtc.source === "rtc" ? "ok-badge" : "unknown-badge"}>{state.rtc.source === "rtc" ? "SYNCED" : "UNKNOWN"}</b></div></div><div className="last-actions"><span className="eyebrow">LAST ACTIONS</span>{state.lastActions.length ? state.lastActions.map((action, index) => <p key={`${index}-${action}`}><Activity size={13} />{action}</p>) : <p><Activity size={13} />ยังไม่มี command ที่ส่งสำเร็จ</p>}</div></article></section></main>{mqttOpen && <div className="mqtt-dialog-backdrop" onClick={() => setMqttOpen(false)}><form className="mqtt-dialog" onSubmit={submitMqttCredentials} onClick={(event) => event.stopPropagation()}><div className="sheet-heading"><div><span className="eyebrow">LEGACY MQTT CONNECTOR</span><h2>เชื่อมต่ออุปกรณ์จริง</h2></div><button type="button" className="icon-button" onClick={() => setMqttOpen(false)} aria-label="ปิด"><X size={18} /></button></div><p className="muted-text">ใช้ HiveMQ WebSocket และ topic เดิมจาก dashboard เก่า ข้อมูลจะไม่ถูกส่งไปยัง ESP จนกว่าจะเชื่อมต่อสำเร็จ</p><label className="mqtt-field">Username<input value={mqttForm.username} onChange={(event) => setMqttForm((current) => ({ ...current, username: event.target.value }))} autoComplete="username" placeholder="smartfarm" /></label><label className="mqtt-field">Password<input type="password" value={mqttForm.password} onChange={(event) => setMqttForm((current) => ({ ...current, password: event.target.value }))} autoComplete="current-password" placeholder="HiveMQ password" /></label><label className="mqtt-remember"><input type="checkbox" checked={mqttForm.remember} onChange={(event) => setMqttForm((current) => ({ ...current, remember: event.target.checked }))} /> จำข้อมูลนี้บนอุปกรณ์</label><div className="mqtt-endpoint"><span>Broker</span><b>{mqttConfig.url}</b></div><button className="manual-button mqtt-submit" type="submit"><Wifi size={17} />บันทึกและเชื่อมต่อ</button></form></div>}{scheduleDeviceId && selectedSchedule && <div className="sheet-backdrop" onClick={() => setScheduleDeviceId(null)}><div onClick={(event) => event.stopPropagation()}><ScheduleEditor schedule={selectedSchedule} device={state.devices.find((device) => device.id === scheduleDeviceId) ?? selectedDevice} onChange={updateSchedule} onClose={() => setScheduleDeviceId(null)} /></div></div>}</div>;
+  return <div className="app-shell"><aside className="sidebar"><div className="brand-lockup"><div className="brand-mark"><Leaf size={20} /></div><div><span className="brand-kicker">สวนลุงนะ</span><strong>SMART FARM</strong></div></div><div className="sidebar-section"><span className="sidebar-caption">CONTROL CENTER</span><nav><button className="nav-link nav-link--active"><Activity size={17} />Overview</button><button className="nav-link" onClick={() => toast.info("หน้าอุปกรณ์จะเพิ่มเมื่อเชื่อมต่อ node เพิ่มเติม")}><Radio size={17} />Devices</button><button className="nav-link" onClick={() => toast.info("Audit log จะดึงจาก Backend ในรุ่นถัดไป")}><Clock3 size={17} />Event history</button></nav></div><div className="sidebar-bottom"><div className="secure-chip"><LockKeyhole size={15} /><span><b>Backend secured</b><small>MQTT credentials never reach browser</small></span></div><span className="version-label">SMARTFARM CORE · 1.0</span></div></aside><main className="main-content"><header className="topbar"><div><span className="eyebrow">LIVE OPERATIONS / 01</span><h1>Farm command center</h1><p>ศูนย์ควบคุมอุปกรณ์และ telemetry จาก ESP8266 แบบ real-time</p></div><div className="topbar-meta"><span className="last-sync"><span className="pulse-ring" />Live stream <b>{loading ? "SYNCING" : "ACTIVE"}</b></span><span>{new Date(state.updatedAt).toLocaleTimeString("th-TH")}</span></div></header>{lastError && <div className="alert-banner"><AlertTriangle size={16} />{lastError}</div>}<section className="hero-grid"><div className="hero-card"><div className="hero-card__content"><span className="eyebrow">SYSTEM PULSE</span><h2>ความพร้อมของฟาร์ม<br /><em>ในมุมเดียว</em></h2><p>สถานะทั้งหมดอ้างอิงจากข้อมูลที่ Backend ได้รับจากอุปกรณ์จริง ไม่ใช้ optimistic hardware state</p><div className="hero-footer"><StatusBadge tone={mqttConnected ? "green" : "red"}>MQTT {state.mqtt.status}</StatusBadge><span className="hero-separator">•</span><span className="hero-footnote">{state.mqtt.lastMessageAt ? `message ${ageLabel(Date.now() - Date.parse(state.mqtt.lastMessageAt))}` : "รอ MQTT message"}</span></div></div><div className="hero-orbit"><div className="orbit orbit--outer" /><div className="orbit orbit--inner" /><div className="orbit-core"><Leaf size={27} /><span>NODE<br /><b>01</b></span></div><div className="orbit-spark orbit-spark--one" /><div className="orbit-spark orbit-spark--two" /></div></div><div className="status-stack"><div className="metric-card"><div className="metric-card__icon metric-card__icon--green"><Wifi size={18} /></div><div><span className="micro-label">ESP8266 NODE</span><strong>{state.esp8266.status}</strong><small>{ageLabel(state.esp8266.heartbeatAgeMs)} · heartbeat</small></div><StatusBadge tone={espOnline ? "green" : "red"}>{espOnline ? "Online" : "Offline"}</StatusBadge></div><div className="metric-card"><div className="metric-card__icon metric-card__icon--amber"><Radio size={18} /></div><div><span className="micro-label">RELAY CONFIRMATIONS</span><strong>{onlineRelays}<small> / {state.relays.length}</small></strong><small>สถานะจาก hardware เท่านั้น</small></div><StatusBadge tone={onlineRelays === state.relays.length ? "green" : "amber"}>{onlineRelays === state.relays.length ? "SYNCED" : "PARTIAL"}</StatusBadge></div></div></section><section className="section-block"><div className="section-heading"><div><span className="eyebrow">TELEMETRY / REAL-TIME</span><h2>Environmental signal</h2></div><span className="data-freshness"><span className="freshness-dot" />{ageLabel(state.dht22.ageMs)}</span></div><div className="telemetry-grid"><div className="telemetry-card"><div className="telemetry-card__top"><div className="telemetry-icon telemetry-icon--coral"><Thermometer size={18} /></div><StatusBadge tone={sensorTone}>{state.dht22.status}</StatusBadge></div><span className="micro-label">TEMPERATURE</span><div className="telemetry-value">{state.dht22.temperature === null ? "—" : state.dht22.temperature.toFixed(1)}<small>°C</small></div><p>DHT22 · {state.dht22.capturedAt ? "ยืนยันจาก ESP8266" : "รอข้อมูลใหม่"}</p></div><div className="telemetry-card"><div className="telemetry-card__top"><div className="telemetry-icon telemetry-icon--cyan"><Droplets size={18} /></div><StatusBadge tone={sensorTone}>{state.dht22.status}</StatusBadge></div><span className="micro-label">HUMIDITY</span><div className="telemetry-value">{state.dht22.humidity === null ? "—" : state.dht22.humidity.toFixed(1)}<small>%</small></div><p>DHT22 · freshness timeout {Math.round((state.dht22.ageMs ?? 0) / 1000)}s</p></div><div className="telemetry-card telemetry-card--rtc"><div className="telemetry-card__top"><div className="telemetry-icon telemetry-icon--violet"><Clock3 size={18} /></div><StatusBadge tone={state.rtc.status === "OK" ? "green" : "red"}>{state.rtc.status === "OK" ? "RTC OK" : "RTC ERROR"}</StatusBadge></div><span className="micro-label">DEVICE RTC</span><div className="rtc-value">{state.rtc.iso ? new Date(state.rtc.iso).toLocaleTimeString("th-TH") : "—:—"}</div><p>{state.rtc.iso ? new Date(state.rtc.iso).toLocaleDateString("th-TH", { dateStyle: "long" }) : "รอเวลาอ้างอิงจาก ESP8266"}</p></div></div></section><section className="section-block"><div className="section-heading"><div><span className="eyebrow">ACTUATION / CONFIRMED STATES</span><h2>Relay control deck</h2></div><span className="section-note"><CheckCircle2 size={14} /> Hardware confirmation required</span></div><div className="relay-grid">{state.relays.map((relay) => <RelayCard key={relay.id} relay={relay} onCommand={handleCommand} onRename={handleRename} />)}</div></section><footer className="page-footer"><span>© 2026 Smart Farm Operations</span><span>Backend-only MQTT architecture · No frontend credentials</span></footer></main></div>;
 }

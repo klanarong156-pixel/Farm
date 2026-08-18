@@ -37,26 +37,16 @@ Repository ที่ผู้ใช้เลือก (`klanarong156-pixel/Farm`
 
 ```text
 User action
-  → publish command topic: { deviceId, command }
-  → ESP execute relay
-  → ESP publish status topic
-  → client parses status
-  → farmControl.devices.status updates
-  → UI removes pending state
+  → Dashboard POST /api/relays/:id/command
+  → Backend validates and publishes MQTT command over TLS
+  → ESP8266 executes relay
+  → ESP8266 publishes confirmed status
+  → Backend reconciles desiredState and confirmedState
+  → Backend broadcasts snapshot through SSE
+  → Dashboard renders confirmed hardware state
 ```
 
-Client ใช้ MQTT over WebSocket และ subscribe เพียงครั้งเดียวหลัง connection สำเร็จ โดยอ่านค่าต่อไปนี้จาก environment เพื่อไม่ฝัง credentials ลงใน source code
-
-| Variable | ใช้สำหรับ |
-|---|---|
-| `VITE_MQTT_URL` | HiveMQ WebSocket URL |
-| `VITE_MQTT_USERNAME` | MQTT username |
-| `VITE_MQTT_PASSWORD` | MQTT password |
-| `VITE_MQTT_COMMAND_TOPIC` | topic ที่ firmware รับคำสั่งเดิม |
-| `VITE_MQTT_STATUS_TOPIC` | topic ที่ firmware รายงานสถานะเดิม |
-| `VITE_MQTT_HEARTBEAT_TOPIC` | topic heartbeat เดิม |
-
-หาก environment ยังไม่ครบ ระบบจะยัง render UI ได้ แต่จะไม่เปิด connection และปุ่ม control จะไม่ส่งคำสั่งหรือเปลี่ยนสถานะอุปกรณ์
+MQTT logic และ credentials อยู่ใน Backend เท่านั้น โดยใช้ `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD` และ `MQTT_BASE` จาก runtime environment. Frontend ไม่มี MQTT client, ไม่มี `VITE_MQTT_*` credentials และไม่เก็บ credential ใน browser storage. หาก Backend เชื่อมต่อ broker ไม่ได้ Dashboard จะแสดง `DISCONNECTED` และจะไม่หลอกผู้ใช้ว่า relay เปลี่ยนสถานะแล้ว.
 
 ## 6. UI Components
 
