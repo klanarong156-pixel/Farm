@@ -4,7 +4,7 @@
 - [x] เปลี่ยน key เป็น identifier ที่มีเอกลักษณ์ต่อรายการ โดยไม่เปลี่ยนข้อความที่แสดง
 - [x] ตรวจไม่มี duplicate key ในรายการสถานะและ action อื่น
 - [x] รัน typecheck/build และตรวจ browser console หลังแก้
-- [ ] สร้าง checkpoint ฉบับส่งมอบ
+- [x] สร้าง checkpoint ฉบับส่งมอบ
 
 ## Smart Farm Implementation
 
