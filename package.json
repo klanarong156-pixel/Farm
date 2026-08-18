@@ -10,7 +10,9 @@
     "preview": "vite preview --host",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "smartfarm:setup": "bash scripts/setup.sh",
+    "smartfarm:start": "bash scripts/start.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

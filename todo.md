@@ -23,3 +23,12 @@
 - [ ] Validate with the user's real MQTT broker and physical ESP8266 hardware
 - [ ] Replace firmware TLS `setInsecure()` placeholder with the broker CA certificate before production
 - [ ] Configure deployment process and TLS certificate rotation policy
+
+## Simple Usage Improvements
+
+- [x] เพิ่มคำสั่ง setup แบบง่ายสำหรับติดตั้ง dependency และสร้าง .env จาก template
+- [x] เพิ่มคำสั่ง start แบบง่ายสำหรับ build และเริ่ม Backend/Dashboard
+- [x] เพิ่มไฟล์ตัวอย่างตั้งค่า MQTT ที่อ่านง่าย พร้อมคำอธิบายภาษาไทย
+- [x] เขียนคู่มือ Quick Start ภาษาไทยแบบทำตามทีละขั้น�ยที่สุด
+- [x] เพิ่มการตรวจสอบค่าตั้งค่าที่จำเป็นและข้อความ error ที่เข้าใจง่าย
+- [x] ทดสอบ flow setup/start และ push การปรับปรุงขึ้น GitHub
