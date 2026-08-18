@@ -7,10 +7,10 @@ function required(name: string, fallback?: string) {
 export const config = {
   port: Number(process.env.PORT ?? 3000),
   mqtt: {
-    host: required("MQTT_HOST", "localhost"),
+    host: required("MQTT_HOST", "650188a0ee2b4367b7c131fb385590a9.s1.eu.hivemq.cloud"),
     port: Number(process.env.MQTT_PORT ?? 8883),
-    username: required("MQTT_USERNAME", "change-me"),
-    password: required("MQTT_PASSWORD", "change-me"),
+    username: required("MQTT_USERNAME"),
+    password: required("MQTT_PASSWORD"),
     base: process.env.MQTT_BASE ?? "smartfarm",
     heartbeatTimeoutMs: Number(process.env.HEARTBEAT_TIMEOUT_MS ?? 90_000),
     sensorFreshnessMs: Number(process.env.SENSOR_FRESHNESS_MS ?? 120_000),

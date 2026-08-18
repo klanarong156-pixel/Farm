@@ -41,3 +41,22 @@
 - [x] ตรวจสอบ responsive layout, typecheck, tests และ build
 - [x] Commit และ push Dashboard แบบธรรมดาขึ้น GitHub
 - [x] ยึดข้อกำหนดจากไฟล์แนบเป็น source of truth และคงฟีเจอร์หลักทั้งหมดระหว่างปรับ Dashboard แบบธรรมดา
+
+## Additional GitHub and Production Requirements
+
+- [x] ตรวจให้โครงสร้าง `firmware/`, `dashboard/`, `backend/`, `config/` และ `docs/` สอดคล้องกับข้อกำหนดจากไฟล์แนบล่าสุด
+- [x] ตรวจว่ามีเอกสาร `architecture.md`, `mqtt_flow.md`, `failure_modes.md` และ `hardware_mapping.md` หรือบันทึกเหตุผลหากยังไม่สร้าง
+- [x] จัดทำ FILES CREATED, FILES MODIFIED และ FILES REMOVED report หลังการเปลี่ยนแปลงทุกครั้ง
+- [x] ตรวจ Git state จริงก่อนรายงานว่า commit/push สำเร็จ
+- [x] จัดทำ GitHub output report ที่ระบุ Repository URL, branch, latest commit hash และ changed files
+
+## Mandatory MQTT Configuration Verification
+
+- [x] ตรวจ MQTT host และ port หลักจากไฟล์แนบโดยไม่ hard-code password ลง repository
+- [x] ยืนยัน TLS/SSL และ Backend-only secure configuration
+- [x] ตรวจ MQTT_BASE และ topic compatibility กับ Firmware/Dashboard เดิม
+- [x] ตรวจ Relay 1-4 command/status synchronization
+- [x] ตรวจ DHT22, RTC, ESP heartbeat, reconnect และ offline detection
+- [x] ตรวจ duplicate subscription/listener และไม่มี fake MQTT/sensor status
+- [ ] ทดสอบ Broker จริงเมื่อมี runtime credentials ที่ปลอดภัย และรายงานผลตามจริง
+- [ ] แจ้งให้หมุนเวียน MQTT password เนื่องจาก credential ถูกแนบมาในข้อความ/ไฟล์
