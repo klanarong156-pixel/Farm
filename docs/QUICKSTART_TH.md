@@ -59,3 +59,15 @@ pnpm build
 ```
 
 การทดสอบชุดนี้ตรวจสอบ source code เท่านั้น ไม่ได้จำลองว่า MQTT หรือ Hardware เชื่อมต่อสำเร็จ
+
+## เปิดจาก GitHub Pages
+
+เมื่อ push เข้า branch `main` GitHub Actions จะ build และ deploy Dashboard แบบ static ไปยัง GitHub Pages โดยใช้ URL:
+
+```text
+https://klanarong156-pixel.github.io/Farm/
+```
+
+หาก URL ยังเป็น 404 ให้เข้า Repository > **Settings > Pages** แล้วเลือก **Source: GitHub Actions** จากนั้นรอ workflow `Deploy Dashboard to GitHub Pages` ทำงานเสร็จและ refresh URL อีกครั้ง
+
+GitHub Pages ใช้แสดงหน้า Dashboard เท่านั้นและไม่สามารถรัน Backend MQTT ได้ หากต้องการดูสถานะจริงและสั่ง Relay ต้องรัน Backend ด้วย `pnpm smartfarm:start` หรือกำหนด `VITE_API_BASE_URL` เป็น URL ของ Backend ที่ deploy แยกไว้ ระบบจะไม่ใส่ MQTT credential ลงใน GitHub Pages

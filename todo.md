@@ -60,3 +60,10 @@
 - [x] ตรวจ duplicate subscription/listener และไม่มี fake MQTT/sensor status
 - [ ] ทดสอบ Broker จริงเมื่อมี runtime credentials ที่ปลอดภัย และรายงานผลตามจริง
 - [ ] แจ้งให้หมุนเวียน MQTT password เนื่องจาก credential ถูกแนบมาในข้อความ/ไฟล์
+
+## 404 Dashboard Fix
+
+- [x] ตรวจสาเหตุที่เปิดหน้า Dashboard แล้วได้ 404
+- [x] แก้ static serving หรือ route fallback ให้ `/` เปิด Dashboard ได้
+- [x] ตรวจคำสั่ง build/start และ production output
+- [x] ทดสอบ root URL และ push bug fix ขึ้น GitHub

@@ -18,14 +18,20 @@ export type FarmControlState = {
   updatedAt: string;
 };
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+
+function apiUrl(path: string) {
+  return `${API_BASE}${path}`;
+}
+
 export async function fetchFarmState(): Promise<FarmControlState> {
-  const response = await fetch("/api/state", { headers: { Accept: "application/json" } });
+  const response = await fetch(apiUrl("/api/state"), { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error("Backend state unavailable");
   return response.json() as Promise<FarmControlState>;
 }
 
 export async function sendRelayCommand(id: number, desiredState: "ON" | "OFF") {
-  const response = await fetch(`/api/relays/${id}/command`, {
+  const response = await fetch(apiUrl(`/api/relays/${id}/command`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ desiredState }),
@@ -36,7 +42,7 @@ export async function sendRelayCommand(id: number, desiredState: "ON" | "OFF") {
 }
 
 export async function renameRelay(id: number, name: string) {
-  const response = await fetch(`/api/relays/${id}`, {
+  const response = await fetch(apiUrl(`/api/relays/${id}`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
