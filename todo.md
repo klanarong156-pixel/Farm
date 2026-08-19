@@ -73,3 +73,11 @@
 - [ ] ตรวจ run ล่าสุดและสาเหตุที่ Pages workflow ถูกยกเลิกจาก concurrency
 - [ ] ปรับ workflow ให้ run ล่าสุด deploy ได้อย่างเสถียรโดยไม่สร้างงานซ้อนที่ไม่จำเป็น
 - [ ] ตรวจผล build/deploy ล่าสุดและยืนยัน URL Dashboard
+
+
+## Organic Farm Dashboard Selection
+
+- [x] ปรับหน้าแดชบอร์ดจริงเป็นสไตล์ Organic Farm ตาม mockup แบบที่ 1
+- [x] ตรวจ responsive และรักษาการแสดง desired/confirmed hardware state ระหว่างปรับ UI
+- [x] รัน tests และ production build หลังปรับธีม
+- [ ] ตรวจ visual บน GitHub Pages หลัง deployment รอบถัดไป
