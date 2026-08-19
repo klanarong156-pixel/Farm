@@ -67,3 +67,9 @@
 - [x] แก้ static serving หรือ route fallback ให้ `/` เปิด Dashboard ได้
 - [x] ตรวจคำสั่ง build/start และ production output
 - [x] ทดสอบ root URL และ push bug fix ขึ้น GitHub
+
+## GitHub Pages Workflow Cancellation
+
+- [ ] ตรวจ run ล่าสุดและสาเหตุที่ Pages workflow ถูกยกเลิกจาก concurrency
+- [ ] ปรับ workflow ให้ run ล่าสุด deploy ได้อย่างเสถียรโดยไม่สร้างงานซ้อนที่ไม่จำเป็น
+- [ ] ตรวจผล build/deploy ล่าสุดและยืนยัน URL Dashboard
